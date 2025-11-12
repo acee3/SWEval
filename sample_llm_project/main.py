@@ -1,5 +1,5 @@
 import os
-from ollama import chat
+from ollama import Client
 from ollama import ChatResponse
 
 
@@ -11,16 +11,20 @@ def get_file_content(file: str) -> str:
 
 
 def get_code_fix_diff(files: list[str]) -> str:
+    client = Client(
+        host="https://ollama.com",
+        headers={'Authorization': 'Bearer ' + os.environ.get('OLLAMA_API_KEY')}
+    )
     file_contents = [get_file_content(file) for file in files]
     formatted_contents = '\n\n'.join(f'```python\n{content}\n```' for content in file_contents)
-    response: ChatResponse = chat(model='gemma3:1b', messages=[
+    response: ChatResponse = client.chat(model='minimax-m2:cloud', messages=[
     {
         'role': 'user',
-        'content': f"""Fix the following code and output the response as a diff file:
+        'content': f"""Fix the bug in the following code and only output the contents of a unified diff that can directly be applied to the files. Do not include any explanations or additional text outside of the diff:
             {formatted_contents}""",
     },
     ])
-    return response['message']['content']
+    return response['message']['content'].strip()
 
 
 def main():
