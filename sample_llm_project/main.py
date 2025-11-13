@@ -1,6 +1,8 @@
 import os
 from ollama import Client
 from ollama import ChatResponse
+import patch_ng as patch
+import tempfile
 
 
 def get_file_content(file: str) -> str:
@@ -24,10 +26,34 @@ def get_code_fix_diff(files: list[str]) -> str:
             {formatted_contents}""",
     },
     ])
-    return response['message']['content'].strip()
+    
+    
+    # TODO: Ensure proper format of the diff file
+    
+    
+    return response['message']['content'].strip().removeprefix("```diff").removesuffix("```")
+
+
+def apply_diff_to_file(file_path: str, diff: str) -> bool:
+    with tempfile.NamedTemporaryFile('w', delete=True, encoding='utf-8', dir=file_path) as f:
+        f.write(diff)
+        pset = patch.fromfile(f.name)
+        if not pset:
+            print(f'Error: improper format for {file_path}\nDIFF:\n{diff}\n')
+            return False
+        patch_status = pset.apply(root=file_path)
+        if not patch_status:
+            print(f'Error: patch failed for {file_path}\nDIFF:\n{diff}\n')
+            return False
+    return True
 
 
 def main():
+
+
+    # TODO: Move this logic for trying all test cases to eval script and only have a function for a single test case here that receives a copy of the directory
+    
+
     test_suite_dir = 'eval_suite'
 
     for file in os.listdir(test_suite_dir):
@@ -41,6 +67,10 @@ def main():
         if not os.path.isdir(bad_code_dir):
             continue
 
+
+        # TODO: Feed the file paths as well as the code to the LLM
+
+
         source_files = []
         for root, _, files in os.walk(bad_code_dir):
             for filename in files:
@@ -51,6 +81,8 @@ def main():
         print(f'--- Fixes for test case: {file} ---')
         print(diff_output)
         print('-----------------------------------\n')
+        
+        apply_diff_to_file(bad_code_dir, diff_output)
 
 
 if __name__ == "__main__":
